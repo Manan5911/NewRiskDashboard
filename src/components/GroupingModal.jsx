@@ -51,6 +51,15 @@ const footer = {
   background: C.surface,
 };
 
+const reorderBtn = (disabled) => ({
+  fontSize: '10px', cursor: disabled ? 'default' : 'pointer',
+  color: C.muted, background: 'none',
+  border: `1px solid ${C.borderMid}`,
+  borderRadius: '3px', lineHeight: 1,
+  padding: '2px 4px', opacity: disabled ? 0.3 : 1,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+});
+
 // User chip (unassigned panel)
 const UserChip = ({ user, onDragStart, onDragEnd }) => (
   <div
@@ -166,6 +175,27 @@ export default function GroupingModal({ allUsers, initialGroups, onSave, onClose
   };
 
   const deleteGroup = (gIdx) => setGroups(prev => prev.filter((_, i) => i !== gIdx));
+
+  const moveGroup = (gIdx, dir) => {
+    setGroups(prev => {
+      const next = [...prev];
+      const targetIdx = gIdx + dir;
+      if (targetIdx < 0 || targetIdx >= next.length) return prev;
+      [next[gIdx], next[targetIdx]] = [next[targetIdx], next[gIdx]];
+      return next;
+    });
+  };
+
+  const moveSubGroup = (gIdx, sIdx, dir) => {
+    setGroups(prev => prev.map((g, i) => {
+      if (i !== gIdx) return g;
+      const next = [...g.subGroups];
+      const targetIdx = sIdx + dir;
+      if (targetIdx < 0 || targetIdx >= next.length) return g;
+      [next[sIdx], next[targetIdx]] = [next[targetIdx], next[sIdx]];
+      return { ...g, subGroups: next };
+    }));
+  };
 
   const updateGroupName = (gIdx, name) =>
     setGroups(prev => prev.map((g, i) => i === gIdx ? { ...g, name } : g));
@@ -375,6 +405,8 @@ export default function GroupingModal({ allUsers, initialGroups, onSave, onClose
                         border: 'none', background: 'transparent', outline: 'none', padding: '1px 0',
                       }}
                     />
+                    <button onClick={() => moveGroup(gIdx, -1)} disabled={gIdx === 0} style={reorderBtn(gIdx === 0)} title="Move up">▲</button>
+                    <button onClick={() => moveGroup(gIdx, 1)} disabled={gIdx === groups.length - 1} style={reorderBtn(gIdx === groups.length - 1)} title="Move down">▼</button>
                     <button onClick={() => deleteGroup(gIdx)} style={{
                       fontSize: '17px', cursor: 'pointer', color: C.muted,
                       background: 'none', border: 'none', lineHeight: 1, padding: '0 2px',
@@ -422,6 +454,8 @@ export default function GroupingModal({ allUsers, initialGroups, onSave, onClose
                               border: 'none', background: 'transparent', outline: 'none', padding: '1px 0',
                             }}
                           />
+                          <button onClick={() => moveSubGroup(gIdx, sIdx, -1)} disabled={sIdx === 0} style={reorderBtn(sIdx === 0)} title="Move up">▲</button>
+                          <button onClick={() => moveSubGroup(gIdx, sIdx, 1)} disabled={sIdx === g.subGroups.length - 1} style={reorderBtn(sIdx === g.subGroups.length - 1)} title="Move down">▼</button>
                           <button onClick={() => deleteSubGroup(gIdx, sIdx)} style={{
                             fontSize: '15px', cursor: 'pointer', color: C.muted,
                             background: 'none', border: 'none', lineHeight: 1, padding: '0 2px',

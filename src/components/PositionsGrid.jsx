@@ -283,8 +283,6 @@ const pairVal = (c, p) => ({
 });
 // Margin values displayed in lakhs (÷100000), always non-negative
 const marginVal = (v) => ({ display: v === 0 ? '' : (v / 100000).toFixed(2), styleKey: v === 0 ? 'zero' : 'pos' });
-// MarginPer displayed as a plain percentage number — color handled by MarginPerCell
-const marginPerVal = (v) => ({ display: v === 0 ? '' : String(v), styleKey: 'zero' });
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────
 const NumCell = ({ display, styleKey, dark }) => (
@@ -306,23 +304,6 @@ const MarginCell = ({ display, styleKey, dark }) => (
     <span style={{ ...VAL[styleKey], color: dark ? '#ffffff' : '#0c0f17' }}>{display}</span>
   </div>
 );
-// MarginPer cell — plain number display, color encodes utilization level:
-// < 70%: neutral muted, 70–90%: amber warning, > 90%: red danger
-const MarginPerCell = ({ display, styleKey }) => {
-  const num = parseFloat(display);
-  const color = isNaN(num) || num === 0
-    ? VAL.zero.color
-    : num >= 90 ? '#e0291b'   // danger — over 90% utilized
-      : num >= 70 ? '#c47a00'   // warning — 70–90%
-        : VAL.zero.color;         // fine — under 70%, keep neutral
-  return (
-    <div style={S.center}>
-      <span style={{ ...VAL[styleKey], color, fontWeight: num >= 70 ? 700 : 500 }}>
-        {display === '—' ? '—' : `${display}%`}
-      </span>
-    </div>
-  );
-};
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 // NOTE: 'user' is always rendered first and is never hideable/reorderable —
@@ -380,10 +361,6 @@ const COLUMNS = [
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
   {
-    id: 'marginPer', accessorKey: 'marginPer', header: 'Margin %', isPaired: false, size: 85,
-    cell: ({ getValue }) => { const v = getValue(); return <MarginPerCell display={v.display} styleKey={v.styleKey} />; }
-  },
-  {
     id: 'bseMargin', accessorKey: 'bseMargin', header: 'BSE Margin', isPaired: false, size: 100,
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
@@ -392,7 +369,7 @@ const COLUMNS = [
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
   {
-    id: 'nseMaxMargin', accessorKey: 'nseMaxMargin', header: 'NSE Max Margin', isPaired: false, size: 120,
+    id: 'nseMaxMargin', accessorKey: 'nseMaxMargin', header: 'Peak Margin', isPaired: false, size: 120,
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
 ];
@@ -469,7 +446,6 @@ const aggToRow = (agg) => ({
   bseMargin:    marginVal(agg.bseMargin),
   ifscMargin:   marginVal(agg.ifscMargin),
   nseMaxMargin: marginVal(agg.nseMaxMargin),
-  marginPer:    marginPerVal(0),
 });
 
 // ─── Group row — Category1 or Category2 ──────────────────────────────────────
@@ -796,7 +772,6 @@ export default function PositionsGrid({ positions }) {
       bseMargin:    marginVal(pos.bseMarginAbs  || 0),
       ifscMargin:   marginVal(pos.ifscMarginAbs || 0),
       nseMaxMargin: marginVal(pos.nseMarginMax  || 0),
-      marginPer:    marginPerVal(pos.MarginPer  || 0),
     };
   };
 
@@ -828,7 +803,7 @@ export default function PositionsGrid({ positions }) {
     });
   };
 
-  const SORTABLE = new Set(['user','pnl','cumPnl','mtm','nseMargin','totalMargin','marginPer','nseMaxMargin']);
+  const SORTABLE = new Set(['user','pnl','cumPnl','mtm','nseMargin','totalMargin','nseMaxMargin']);
 
   const sortIcon = (colId) => {
     if (!SORTABLE.has(colId)) return null;
@@ -871,7 +846,6 @@ export default function PositionsGrid({ positions }) {
         case 'mtm':        aVal = Object.values(a.tradesMap||{}).reduce((s,t)=>s+(t.MTM||0),0);    bVal = Object.values(b.tradesMap||{}).reduce((s,t)=>s+(t.MTM||0),0);    break;
         case 'nseMargin':    aVal = a.nseMarginAbs  || 0; bVal = b.nseMarginAbs  || 0; break;
         case 'totalMargin':  aVal = a.totalMargin   || 0; bVal = b.totalMargin   || 0; break;
-        case 'marginPer':    aVal = a.MarginPer     || 0; bVal = b.MarginPer     || 0; break;
         case 'nseMaxMargin': aVal = a.nseMarginMax  || 0; bVal = b.nseMarginMax  || 0; break;
         default: return 0;
       }
@@ -884,7 +858,7 @@ return (
       {/* ── Toolbar ── */}
       <div style={{ ...S.toolbar, flexShrink: 0, justifyContent: 'space-between' }}>
         {/* ── Search ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span style={{
               position: 'absolute', left: '7px', fontSize: '14px',
