@@ -57,13 +57,9 @@ const S = {
   wrapper: {
     width: '100%',
     height: '100%',
-    overflowX: 'auto',
-    overflowY: 'auto',
+    overflow: 'auto',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     background: '#ffffff',
-    // Smooth scrolling
-    scrollBehavior: 'smooth',
-    // Beautiful thin scrollbar (webkit)
     scrollbarWidth: 'thin',
     scrollbarColor: '#c8cdd6 transparent',
   },
@@ -85,7 +81,7 @@ const S = {
     fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase',
     borderBottom: `2px solid ${C.borderStrong}`, borderRight: `1px solid rgba(255,255,255,0.08)`,
     whiteSpace: 'nowrap', userSelect: 'none',
-    position: 'sticky', top: 0, zIndex: 2,
+    height: '34px', boxSizing: 'border-box',
   },
   thUser: {
     padding: '6px 9px', textAlign: 'left',
@@ -93,14 +89,14 @@ const S = {
     fontSize: '14px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase',
     borderBottom: `1px solid ${C.border}`, borderRight: `1px solid rgba(255,255,255,0.08)`,
     whiteSpace: 'nowrap', userSelect: 'none',
-    position: 'sticky', top: 0, zIndex: 2,
+    height: '34px', boxSizing: 'border-box',
   },
   thGrouped: { borderRight: `1px solid rgba(255,255,255,0.08)` },
   subTh: {
     padding: '2px 6px', background: C.headerBgAlt,
     borderBottom: `1px solid ${C.border}`,
     borderRight: `1px solid rgba(255,255,255,0.08)`,
-    position: 'sticky', top: 28, zIndex: 2,
+    height: '22px', boxSizing: 'border-box',
   },
   subThGrouped: { borderRight: `1px solid rgba(255,255,255,0.08)` },
   subLabel: { display: 'flex', justifyContent: 'space-between', gap: '4px' },
@@ -129,9 +125,9 @@ const S = {
 const ROW_BG = [{ background: C.rowEven }, { background: C.rowOdd }];
 
 const CLICKABLE = new Set([
-  'niftyFut', 'bnfFut', 'ifscFut',
+  'niftyFut', 'bnfFut',
   'w', 'w1', 'w2', 'w3', 'w4', 'w5',
-  'stocks',
+  'totalOpts', 'stocks',
 ]);
 
 // ─── Inject scrollbar styles once at module load ──────────────────────────────
@@ -151,13 +147,13 @@ if (typeof document !== 'undefined' && !document.getElementById('positions-scrol
 const BUCKET_KEYS = {
   niftyFut: ['niftyFut'],
   bnfFut: ['bnfFut'],
-  ifscFut: ['ifscFut'],
   w: ['cw', 'pw'],
   w1: ['cw1', 'pw1'],
   w2: ['cw2', 'pw2'],
   w3: ['cw3', 'pw3'],
   w4: ['cw4', 'pw4'],
   w5: ['cw5', 'pw5'],
+  totalOpts: ['cw','pw','cw1','pw1','cw2','pw2','cw3','pw3','cw4','pw4','cw5','pw5'],
   stocks: ['stocks'],
 };
 
@@ -169,7 +165,7 @@ const getWeekKey = (symbol) => {
 const getTradeBucketKey = (trade) => {
   const { SecurityType, Optiontype, Symbol, SecurityExchange } = trade;
   if (SecurityType === 'FUT') {
-    if (SecurityExchange === 'IFSC') return 'ifscFut';
+    if (SecurityExchange === 'IFSC') return 'stocks';
     if (Symbol === 'NIFTY') return 'niftyFut';
     if (Symbol === 'BANKNIFTY') return 'bnfFut';
     return 'stocks';
@@ -182,8 +178,26 @@ const getTradeBucketKey = (trade) => {
   return 'stocks';
 };
 
-const fmtQty = (v) => v === 0 ? '' : v;
-const fmtPrice = (v) => v === 0 ? '' : v.toFixed(2);
+const fmtQty   = (v) => v === 0 ? '' : fmtNum(v);
+const fmtPrice = (v) => v === 0 ? '' : fmtNum(v.toFixed(2));
+
+const fmtNum = (v) => {
+  if (v === '' || v === '—' || v === null || v === undefined) return v;
+  const str = String(v);
+  const neg = str[0] === '-';
+  const abs = neg ? str.slice(1) : str;
+  const [intPart, decPart] = abs.split('.');
+  let fmt;
+  if (intPart.length <= 3) {
+    fmt = intPart;
+  } else {
+    const last3 = intPart.slice(-3);
+    const rest  = intPart.slice(0, -3);
+    fmt = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
+  }
+  return (neg ? '-' : '') + fmt + (decPart !== undefined ? '.' + decPart : '');
+};
+
 const fmtExp = (v) => {
   if (!v) return '—';
   const s = v.toString();
@@ -274,15 +288,15 @@ const ExpandedRow = ({ trades, colId, onClose, totalCols }) => {
 // ─── Value helpers ────────────────────────────────────────────────────────────
 const resolveValKey = (v) => v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
 const numVal = (v) => ({ display: v === 0 ? '—' : v, styleKey: resolveValKey(v) });
-const decimalVal = (v) => ({ display: v === 0 ? '—' : (v / 100000).toFixed(2), styleKey: resolveValKey(v) });
+const decimalVal = (v) => ({ display: v === 0 ? '—' : fmtNum((v / 100000).toFixed(2)), styleKey: resolveValKey(v) });
 const pairVal = (c, p) => ({
-  cDisplay: c === 0 ? '—' : c,
-  pDisplay: p === 0 ? '—' : p,
+  cDisplay: c === 0 ? '—' : fmtNum(c),
+  pDisplay: p === 0 ? '—' : fmtNum(p),
   cStyleKey: c === 0 ? 'zero' : 'call',
   pStyleKey: p === 0 ? 'zero' : 'put',
 });
 // Margin values displayed in lakhs (÷100000), always non-negative
-const marginVal = (v) => ({ display: v === 0 ? '' : (v / 100000).toFixed(2), styleKey: v === 0 ? 'zero' : 'pos' });
+const marginVal = (v) => ({ display: v === 0 ? '' : fmtNum((v / 100000).toFixed(2)), styleKey: v === 0 ? 'zero' : 'pos' });
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────
 const NumCell = ({ display, styleKey, dark }) => (
@@ -329,16 +343,13 @@ const COLUMNS = [
     id: 'bnfFut', accessorKey: 'bnfFut', header: 'BNF Fut', isPaired: false, size: 75,
     cell: ({ getValue }) => { const v = getValue(); return <NumCell display={v.display} styleKey={v.styleKey} />; }
   },
-  {
-    id: 'ifscFut', accessorKey: 'ifscFut', header: 'IFSC Fut', isPaired: false, size: 75,
-    cell: ({ getValue }) => { const v = getValue(); return <NumCell display={v.display} styleKey={v.styleKey} />; }
-  },
   { id: 'w', accessorKey: 'w', header: 'W', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   { id: 'w1', accessorKey: 'w1', header: 'W1', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   { id: 'w2', accessorKey: 'w2', header: 'W2', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   { id: 'w3', accessorKey: 'w3', header: 'W3', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   { id: 'w4', accessorKey: 'w4', header: 'W4', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   { id: 'w5', accessorKey: 'w5', header: 'W5', isPaired: true, size: 90, cell: ({ getValue }) => <PairCell {...getValue()} /> },
+  { id: 'totalOpts', accessorKey: 'totalOpts', header: 'Total W', isPaired: true, size: 88, cell: ({ getValue }) => <PairCell {...getValue()} /> },
   {
     id: 'pnl', accessorKey: 'pnl', header: 'PnL (L)', isPaired: false, size: 90,
     cell: ({ getValue }) => { const v = getValue(); return <NumCell display={v.display} styleKey={v.styleKey} />; }
@@ -379,7 +390,7 @@ const DEFAULT_COLUMN_ORDER = COLUMNS.map((c) => c.id);
 // ─── Aggregate helper — sums numeric bucket fields across an array of pos ────
 const aggregateBuckets = (posList) => {
   const sum = {
-    niftyFut: 0, bnfFut: 0, ifscFut: 0,
+    niftyFut: 0, bnfFut: 0, totalC: 0, totalP: 0,
     cw: 0, cw1: 0, cw2: 0, cw3: 0, cw4: 0, cw5: 0,
     pw: 0, pw1: 0, pw2: 0, pw3: 0, pw4: 0, pw5: 0,
     stocks: 0, pnl: 0, cumPnl: 0, mtm: 0,
@@ -388,7 +399,8 @@ const aggregateBuckets = (posList) => {
   for (const pos of posList) {
     sum.niftyFut += pos.niftyFut || 0;
     sum.bnfFut += pos.bnfFut || 0;
-    sum.ifscFut += pos.ifscFut || 0;
+    sum.totalC += pos.totalC || 0; 
+    sum.totalP += pos.totalP || 0;
     sum.cw += pos.cw || 0;
     sum.cw1 += pos.cw1 || 0;
     sum.cw2 += pos.cw2 || 0;
@@ -419,10 +431,10 @@ const aggregateBuckets = (posList) => {
 };
 
 // ─── Convert aggregate sums to display values ─────────────────────────────────
-const aggNumVal = (v) => ({ display: v === 0 ? '' : v, styleKey: v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero' });
+const aggNumVal = (v) => ({ display: v === 0 ? '' : fmtNum(v), styleKey: v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero' });
 const aggPairVal = (c, p) => ({
-  cDisplay: c === 0 ? '' : c,
-  pDisplay: p === 0 ? '' : p,
+  cDisplay: c === 0 ? '' : fmtNum(c),
+  pDisplay: p === 0 ? '' : fmtNum(p),
   cStyleKey: c === 0 ? 'zero' : 'call',
   pStyleKey: p === 0 ? 'zero' : 'put',
 });
@@ -430,7 +442,7 @@ const aggPairVal = (c, p) => ({
 const aggToRow = (agg) => ({
   niftyFut: aggNumVal(agg.niftyFut),
   bnfFut: aggNumVal(agg.bnfFut),
-  ifscFut: aggNumVal(agg.ifscFut),
+  totalOpts: aggPairVal(agg.totalC, agg.totalP),
   w: aggPairVal(agg.cw, agg.pw),
   w1: aggPairVal(agg.cw1, agg.pw1),
   w2: aggPairVal(agg.cw2, agg.pw2),
@@ -734,7 +746,7 @@ export default function PositionsGrid({ positions }) {
 
     // numVal that shows blank if no trades in bucket, — if trades but zero
     const bucketVal = (value, bucketKey) => {
-      if (value !== 0) return { display: value, styleKey: value > 0 ? 'pos' : 'neg' };
+      if (value !== 0) return { display: fmtNum(value), styleKey: value > 0 ? 'pos' : 'neg' };
       const hasTrades = Array.isArray(bucketKey)
         ? bucketKey.some(k => bucketsWithTrades.has(k))
         : bucketsWithTrades.has(bucketKey);
@@ -742,8 +754,8 @@ export default function PositionsGrid({ positions }) {
     };
 
     const pairBucketVal = (c, p, ck, pk) => ({
-      cDisplay: c !== 0 ? c : bucketsWithTrades.has(ck) ? '—' : '',
-      pDisplay: p !== 0 ? p : bucketsWithTrades.has(pk) ? '—' : '',
+      cDisplay: c !== 0 ? fmtNum(c) : bucketsWithTrades.has(ck) ? '—' : '',
+      pDisplay: p !== 0 ? fmtNum(p) : bucketsWithTrades.has(pk) ? '—' : '',
       cStyleKey: c === 0 ? 'zero' : 'call',
       pStyleKey: p === 0 ? 'zero' : 'put',
     });
@@ -756,13 +768,13 @@ export default function PositionsGrid({ positions }) {
     return {
       niftyFut: bucketVal(pos.niftyFut, 'niftyFut'),
       bnfFut: bucketVal(pos.bnfFut, 'bnfFut'),
-      ifscFut: bucketVal(pos.ifscFut, 'ifscFut'),
       w: pairBucketVal(pos.cw, pos.pw, 'cw', 'pw'),
       w1: pairBucketVal(pos.cw1, pos.pw1, 'cw1', 'pw1'),
       w2: pairBucketVal(pos.cw2, pos.pw2, 'cw2', 'pw2'),
       w3: pairBucketVal(pos.cw3, pos.pw3, 'cw3', 'pw3'),
       w4: pairBucketVal(pos.cw4, pos.pw4, 'cw4', 'pw4'),
       w5: pairBucketVal(pos.cw5, pos.pw5, 'cw5', 'pw5'),
+      totalOpts: pairBucketVal(pos.totalC || 0, pos.totalP || 0, 'cw', 'pw'),
       stocks: bucketVal(pos.stocks, 'stocks'),
       pnl: decimalVal(totalPnl),
       cumPnl: decimalVal(totalCumPnl),
@@ -784,7 +796,7 @@ export default function PositionsGrid({ positions }) {
       // Match user name
       if ((pos.user || '').toLowerCase().includes(q)) return true;
       // Match bucket values — Others, Nifty Fut, BNF Fut, IFSC Fut
-      const scalarBuckets = ['stocks', 'niftyFut', 'bnfFut', 'ifscFut'];
+      const scalarBuckets = ['stocks', 'niftyFut', 'bnfFut'];
       for (const key of scalarBuckets) {
         const v = pos[key];
         if (v && v !== 0 && String(v).toLowerCase().includes(q)) return true;
@@ -793,6 +805,7 @@ export default function PositionsGrid({ positions }) {
       const pairBuckets = [
         ['cw','pw'], ['cw1','pw1'], ['cw2','pw2'],
         ['cw3','pw3'], ['cw4','pw4'], ['cw5','pw5'],
+        ['totalC','totalP'],
       ];
       for (const [ck, pk] of pairBuckets) {
         const c = pos[ck], p = pos[pk];
@@ -875,7 +888,7 @@ return (
                 fontSize: '14px', color: '#111827',
                 border: '1px solid #d1d5db', borderRadius: '4px',
                 outline: 'none', width: '200px',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
+                fontFamily: 'system-ui, -apple-system, sans-serif', 
               }}
             />
             {searchQuery && (
@@ -942,7 +955,7 @@ return (
         </colgroup>
 
         {/* ── Headers ── */}
-        <thead>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 3 }}>
           <tr>
             {visibleColDefs.map((col) => (
               <th key={col.id}

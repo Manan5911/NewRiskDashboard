@@ -880,7 +880,7 @@ export const useDataStore = create(devtools((set, get) => ({
     const getBucketKey = (trade) => {
       const { SecurityType, Optiontype, Symbol, SecurityExchange } = trade;
       if (SecurityType === 'FUT') {
-        if (SecurityExchange === 'IFSC') return 'ifscFut';
+        if (SecurityExchange === 'IFSC') return 'stocks';
         if (Symbol === 'NIFTY') return 'niftyFut';
         if (Symbol === 'BANKNIFTY') return 'bnfFut';
         return 'stocks';
@@ -914,9 +914,10 @@ export const useDataStore = create(devtools((set, get) => ({
       Category1: match ? (match.Category1 || 'Unassigned') : 'Unassigned',
       Category2: match ? (match.Category2 || 'Unassigned') : 'Unassigned',
       tradesMap: {},
-      niftyFut: 0, bnfFut: 0, ifscFut: 0,
+      niftyFut: 0, bnfFut: 0,
       cw: 0, cw1: 0, cw2: 0, cw3: 0, cw4: 0, cw5: 0,
       pw: 0, pw1: 0, pw2: 0, pw3: 0, pw4: 0, pw5: 0,
+      totalC: 0, totalP: 0,
       stocks: 0,
       // Margin fields — populated by updateSpanMargin after trades load
       nseMarginAbs: 0,
@@ -1090,6 +1091,10 @@ export const useDataStore = create(devtools((set, get) => ({
       positions[user].tradesMap[tradeKey] = finalTrade;
       positions[user][bucketKey] =
         (positions[user][bucketKey] || 0) - previousNetPos + newNetPos;
+
+      const p = positions[user];
+      p.totalC = (p.cw||0)+(p.cw1||0)+(p.cw2||0)+(p.cw3||0)+(p.cw4||0)+(p.cw5||0);
+      p.totalP = (p.pw||0)+(p.pw1||0)+(p.pw2||0)+(p.pw3||0)+(p.pw4||0)+(p.pw5||0);
 
       // Register this user against this SecurityId for LTP relevance filtering
       const secKey = String(trade.SecurityId);

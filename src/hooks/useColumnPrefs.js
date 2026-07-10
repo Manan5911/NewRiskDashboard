@@ -20,7 +20,16 @@ export function useColumnPrefs(columnIds, userKey) {
       const knownSet = new Set(columnIds);
       const reconciledOrder = customColumns.order.filter(id => knownSet.has(id));
       const savedSet = new Set(reconciledOrder);
-      columnIds.forEach(id => { if (!savedSet.has(id)) reconciledOrder.push(id); });
+      // Insert new columns at their natural position from columnIds
+      columnIds.forEach((id, idx) => {
+        if (!savedSet.has(id)) {
+          // Find the right insertion point based on natural order
+          const prevInNatural = columnIds.slice(0, idx).reverse().find(pid => savedSet.has(pid));
+          const insertAfter = prevInNatural ? reconciledOrder.indexOf(prevInNatural) : -1;
+          reconciledOrder.splice(insertAfter + 1, 0, id);
+          savedSet.add(id);
+        }
+      });
 
       setOrder(reconciledOrder);
       setHidden(new Set((customColumns.hidden || []).filter(id => knownSet.has(id))));
