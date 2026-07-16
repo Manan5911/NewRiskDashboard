@@ -128,6 +128,7 @@ const CLICKABLE = new Set([
   'niftyFut', 'bnfFut',
   'w', 'w1', 'w2', 'w3', 'w4', 'w5',
   'totalOpts', 'stocks',
+  'nseMargin', 'bseMargin', 'ifscMargin', 'totalMargin', 'nseMaxMargin',
 ]);
 
 // ─── Inject scrollbar styles once at module load ──────────────────────────────
@@ -277,6 +278,133 @@ const ExpandedRow = ({ trades, colId, onClose, totalCols }) => {
                   <td style={ptd}>{fmtPrice(trade.IntraPrice)}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </td>
+    </tr>
+  );
+};
+
+// ─── Margin breakdown row ─────────────────────────────────────────────────────
+const MARGIN_EXCH_FILTER = {
+  nseMargin:    (e) => e.exch === 'NSEFO',
+  nseMaxMargin: (e) => e.exch === 'NSEFO',
+  bseMargin:    (e) => e.exch === 'BSEED',
+  ifscMargin:   (e) => e.exch === 'IFSC',
+  totalMargin:  (e) => true,
+};
+
+const MarginExpandedRow = ({ pos, colId, onClose, totalCols, referenceRate }) => {
+  const entries = (pos.spanEntries || []).filter(MARGIN_EXCH_FILTER[colId] || (() => true));
+  const premiumBuy = pos.premiumBuy || 0;
+  const showPremium = colId === 'totalMargin';
+
+  const headers = ['CTCL', 'Exchange', 'Span', 'Exposure', 'Total', 'Peak',
+    ...(showPremium ? ['Premium Buy'] : [])
+  ];
+
+  const ptd = {
+    padding: '4px 12px', textAlign: 'center', color: C.muted,
+    borderRight: `1px solid ${C.expandedBorder}`,
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', fontSize: '14px',
+  };
+  const ptdL = { ...ptd, textAlign: 'left', color: C.text };
+  const ptdR = { ...ptd, textAlign: 'right' };
+
+  const fmt = (v) => v === 0 ? '—' : fmtNum((v / 100000).toFixed(2));
+
+  const totSpan     = entries.reduce((s, e) => s + (e.spanMargin     || 0), 0);
+  const totExposure = entries.reduce((s, e) => s + (e.exposureMargin || 0), 0);
+  const totTotal    = entries.reduce((s, e) => s + (e.totalMargin    || 0), 0);
+  const totPeak     = entries.reduce((s, e) => s + (e.maxMargin      || 0), 0);
+
+  return (
+    <tr>
+      <td colSpan={totalCols} style={{
+        padding: 0, background: C.expandedBg,
+        borderBottom: `2px solid ${C.expandedBorder}`,
+        borderTop: `1px solid ${C.expandedBorder}`,
+      }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '5px 12px', background: '#e7eefb',
+          borderBottom: `1px solid ${C.expandedBorder}`,
+        }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: C.text, letterSpacing: '0.2px' }}>
+            Margin Breakdown
+          </span>
+          <span onClick={onClose} style={{
+            fontSize: '17px', lineHeight: 1, cursor: 'pointer',
+            color: C.muted, userSelect: 'none', padding: '0 4px',
+          }}>×</span>
+        </div>
+
+        {entries.length === 0 ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: C.muted, fontSize: '13px' }}>
+            No margin data.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '180px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '120px' }} />
+              {showPremium && <col style={{ width: '140px' }} />}
+            </colgroup>
+            <thead>
+              <tr style={{ background: '#e7eefb' }}>
+                {headers.map(h => (
+                  <th key={h} style={{
+                    padding: '4px 12px',
+                    textAlign: 'left',
+                    fontSize: '12px', fontWeight: 700, color: C.text,
+                    letterSpacing: '0.5px', textTransform: 'uppercase',
+                    borderBottom: `1px solid ${C.expandedBorder}`,
+                    borderRight: `1px solid ${C.expandedBorder}`,
+                    whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? C.expandedBg : '#eef3fc' }}>
+                  <td style={ptdL}>{e.ctcl}</td>
+                  <td style={ptdL}>{e.exch}</td>
+                  <td style={ptdL}>{fmt(e.spanMargin || 0)}</td>
+                  <td style={ptdL}>{fmt(e.exposureMargin || 0)}</td>
+                  <td style={ptdL}>{fmt(e.totalMargin || 0)}</td>
+                  <td style={ptdL}>{fmt(e.maxMargin || 0)}</td>
+                  {showPremium && <td style={ptdL}>—</td>}
+                </tr>
+              ))}
+              {showPremium && premiumBuy > 0 && (
+                <tr style={{ background: '#eef3fc' }}>
+                  <td style={ptdL}>Premium Buy</td>
+                  <td style={ptdL}>—</td>
+                  <td style={ptdL}>—</td>
+                  <td style={ptdL}>—</td>
+                  <td style={ptdL}>—</td>
+                  <td style={ptdL}>—</td>
+                  <td style={ptdL}>{fmt(premiumBuy)}</td>
+                </tr>
+              )}
+              <tr style={{ background: '#dce6f8' }}>
+                <td style={{ ...ptdL, fontWeight: 700 }}>Total</td>
+                <td style={{ ...ptdL, fontWeight: 700 }}>—</td>
+                <td style={{ ...ptdL, fontWeight: 700, color: C.text }}>{fmt(totSpan)}</td>
+                <td style={{ ...ptdL, fontWeight: 700, color: C.text }}>{fmt(totExposure)}</td>
+                <td style={{ ...ptdL, fontWeight: 700, color: C.text }}>{fmt(totTotal)}</td>
+                <td style={{ ...ptdL, fontWeight: 700, color: C.text }}>{fmt(totPeak)}</td>
+                {showPremium && (
+                  <td style={{ ...ptdL, fontWeight: 700, color: C.text }}>{fmt(premiumBuy)}</td>
+                )}
+              </tr>
             </tbody>
           </table>
         )}
@@ -664,7 +792,8 @@ export default function PositionsGrid({ positions }) {
   }, [colWidths]);
 
   // Grouping config — persisted to localStorage per viewer
-  const customGroupingFromStore = useDataStore(state => state.customGrouping);
+  const customGroupingFromStore   = useDataStore(s => s.customGrouping);
+  const referenceRate             = useDataStore(s => s.referenceRate);
   const saveCustomGroupingToStore = useDataStore(state => state.saveCustomGrouping);
   const port = window.location.port || '80';
 
@@ -702,25 +831,37 @@ export default function PositionsGrid({ positions }) {
     setExpanded(null);
   }, []);
 
+  const MARGIN_COLS = new Set(['nseMargin','bseMargin','ifscMargin','totalMargin','nseMaxMargin']);
+
   const handleCellClick = useCallback((colId, userKey, pos) => {
     if (!CLICKABLE.has(colId)) return;
-    const bucketKeys = BUCKET_KEYS[colId];
-    if (!bucketKeys || !pos) return;
+    if (!pos) return;
 
-    setExpanded((prev) => {
-      if (prev && prev.colId === colId && prev.userKey === userKey) return null;
-
-      const trades = Object.values(pos.tradesMap).filter(
-        (trade) => bucketKeys.includes(getTradeBucketKey(trade))
+    // Margin column — show margin breakdown
+    if (MARGIN_COLS.has(colId)) {
+      setExpanded(prev =>
+        prev && prev.colId === colId && prev.userKey === userKey
+          ? null
+          : { userKey, colId, type: 'margin', pos }
       );
-      trades.sort((a, b) => {
-        const aIsCall = a.Optiontype === 'CE' ? 0 : 1;
-        const bIsCall = b.Optiontype === 'CE' ? 0 : 1;
-        if (aIsCall !== bIsCall) return aIsCall - bIsCall;
-        return (a.Symbol || '').localeCompare(b.Symbol || '');
-      });
+      return;
+    }
 
-      return { userKey, colId, trades };
+    // Trade bucket column
+    const bucketKeys = BUCKET_KEYS[colId];
+    if (!bucketKeys) return;
+    setExpanded(prev => {
+      if (prev && prev.colId === colId && prev.userKey === userKey) return null;
+      const trades = Object.values(pos.tradesMap).filter(t =>
+        bucketKeys.includes(getTradeBucketKey(t)) &&
+        (t.NetPos !== 0 || t.SOD_Qty !== 0 || t.IntraQty !== 0)
+      );
+      trades.sort((a,b) => {
+        const ac = a.Optiontype==='CE'?0:1, bc = b.Optiontype==='CE'?0:1;
+        if (ac!==bc) return ac-bc;
+        return (a.Symbol||'').localeCompare(b.Symbol||'');
+      });
+      return { userKey, colId, type: 'trade', trades };
     });
   }, []);
 
@@ -1060,13 +1201,9 @@ return (
                       })}
                     </tr>
                     {isExpRow && (
-                      <ExpandedRow
-                        key={`exp-${userKey}`}
-                        trades={expanded.trades}
-                        colId={expanded.colId}
-                        onClose={closeExpanded}
-                        totalCols={totalCols}
-                      />
+                      expanded.type === 'margin'
+                        ? <MarginExpandedRow key={`exp-${userKey}`} pos={expanded.pos} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} referenceRate={referenceRate} />
+                        : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} />
                     )}
                   </Fragment>
                 );
@@ -1172,13 +1309,9 @@ return (
                             </tr>
 
                             {isExpRow && (
-                              <ExpandedRow
-                                key={`exp-${userKey}`}
-                                trades={expanded.trades}
-                                colId={expanded.colId}
-                                onClose={closeExpanded}
-                                totalCols={totalCols}
-                              />
+                              expanded.type === 'margin'
+                                ? <MarginExpandedRow key={`exp-${userKey}`} pos={expanded.pos} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} referenceRate={referenceRate} />
+                                : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} />
                             )}
                           </Fragment>
                         );
