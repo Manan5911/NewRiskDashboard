@@ -1,10 +1,10 @@
 // src/pages/Dashboard.jsx
+import React from 'react';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useDataStore } from '../store/dataStore';
 import { useNavigate } from 'react-router-dom';
 import { Typography, Box, Button, Skeleton } from '@mui/material';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PositionsGrid from '../components/PositionsGrid';
 
 const REFRESH_TRADES_AFTER_MS = 30  * 1000;
@@ -54,41 +54,90 @@ const SocketStatus = ({ isConnected }) => (
   </Box>
 );
 
-// ─── Logged-in user pill ──────────────────────────────────────────────────────
-const UserBadge = ({ user }) => (
-  <Box sx={{
-    display: 'flex', alignItems: 'center', gap: '8px',
-    padding: '5px 12px',
-    borderRadius: '999px',
-    backgroundColor: '#e9edf5',
-    border: '1px solid #dde2ec',
-  }}>
-    <Box sx={{
-      width: 24, height: 24, borderRadius: '50%',
-      backgroundColor: '#0c5fd0',
-      color: '#ffffff',
-      fontSize: '12px', fontWeight: 700,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0,
-      textTransform: 'uppercase',
-    }}>
-      {(user || '?').charAt(0)}
+// ─── User menu dropdown ───────────────────────────────────────────────────────
+const UserMenu = ({ user, onLogout, onOpenColumns, onOpenGrouping }) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const items = [
+    { icon: '▦', label: 'Columns',  action: () => { onOpenColumns();  setOpen(false); } },
+    { icon: '⊜', label: 'Grouping', action: () => { onOpenGrouping(); setOpen(false); } },
+    { divider: true },
+    { icon: '⎋', label: 'Logout',   action: () => { onLogout();       setOpen(false); }, danger: true },
+  ];
+
+  return (
+    <Box ref={ref} sx={{ position: 'relative' }}>
+      <Box
+        onClick={() => setOpen(p => !p)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '5px 12px', borderRadius: '999px',
+          backgroundColor: open ? '#dde2ec' : '#e9edf5',
+          border: '1px solid #dde2ec',
+          cursor: 'pointer', userSelect: 'none',
+          transition: 'background 0.12s',
+          '&:hover': { backgroundColor: '#dde2ec' },
+        }}
+      >
+        <Box sx={{
+          width: 24, height: 24, borderRadius: '50%',
+          backgroundColor: '#0c5fd0', color: '#ffffff',
+          fontSize: '12px', fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, textTransform: 'uppercase',
+        }}>
+          {(user || '?').charAt(0)}
+        </Box>
+        <Typography sx={{ fontSize: '13px', fontWeight: 700, color: '#0c0f17' }}>
+          {user}
+        </Typography>
+        <Typography sx={{ fontSize: '10px', color: '#6b7280', ml: '2px' }}>▾</Typography>
+      </Box>
+
+      {open && (
+        <Box sx={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          background: '#fff', border: '1px solid #e5e7eb',
+          borderRadius: '7px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+          zIndex: 200, minWidth: '160px', overflow: 'hidden',
+        }}>
+          {items.map((item, i) => item.divider ? (
+            <Box key={i} sx={{ height: '1px', background: '#f3f4f6', my: '2px' }} />
+          ) : (
+            <Box
+              key={item.label}
+              onClick={item.action}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: '9px',
+                padding: '9px 16px', fontSize: '13px', fontWeight: 600,
+                color: item.danger ? '#e0291b' : '#111827',
+                cursor: 'pointer',
+                '&:hover': { background: item.danger ? '#fff5f5' : '#f0f4ff' },
+              }}
+            >
+              <span style={{ fontSize: '14px' }}>{item.icon}</span>
+              {item.label}
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
-    <Typography sx={{ fontSize: '13px', fontWeight: 700, color: '#0c0f17' }}>
-      {user}
-    </Typography>
-  </Box>
-);
+  );
+};
 
 // ─── Header bar ───────────────────────────────────────────────────────────────
-const HeaderBar = ({ user, onLogout, isSocketConnected }) => (
+const HeaderBar = ({ user, onLogout, isSocketConnected, onOpenColumns, onOpenGrouping }) => (
   <Box sx={{
     px: 2, py: 1,
-    display:        'flex',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    borderBottom:   '1px solid #dde2ec',
-    flexShrink:     0,
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    borderBottom: '1px solid #dde2ec', flexShrink: 0,
   }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '19px', color: '#0c0f17' }}>
@@ -96,31 +145,12 @@ const HeaderBar = ({ user, onLogout, isSocketConnected }) => (
       </Typography>
       <SocketStatus isConnected={isSocketConnected} />
     </Box>
-
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-      <UserBadge user={user} />
-      <Button
-        onClick={onLogout}
-        startIcon={<LogoutRoundedIcon sx={{ fontSize: 17 }} />}
-        sx={{
-          fontSize: '13px',
-          fontWeight: 700,
-          textTransform: 'none',
-          color: '#e0291b',
-          border: '1.5px solid #e0291b',
-          borderRadius: '7px',
-          padding: '6px 14px',
-          backgroundColor: '#ffffff',
-          transition: 'background-color 0.15s, color 0.15s',
-          '&:hover': {
-            backgroundColor: '#e0291b',
-            color: '#ffffff',
-          },
-        }}
-      >
-        Logout
-      </Button>
-    </Box>
+    <UserMenu
+      user={user}
+      onLogout={onLogout}
+      onOpenColumns={onOpenColumns}
+      onOpenGrouping={onOpenGrouping}
+    />
   </Box>
 );
 
@@ -170,6 +200,7 @@ export default function Dashboard() {
     fetchMarginFromUser,
     fetchCustomGrouping,
     fetchCustomColumns,
+    fetchCommonSubscription,
   } = useDataStore();
 
   const pendingRequests    = useDataStore((state) => state.pendingRequests);
@@ -200,13 +231,13 @@ export default function Dashboard() {
       await fetchUserData(user, port);
       await fetchCustomGrouping(port);
       await fetchCustomColumns(port);
+      await fetchCommonSubscription();
 
       await Promise.all([
         getExchangeList(),
         getMappedUsers(),
         getCustomerAccountMappings(),
         getClosePrices(),
-        getLTP(),
         fetchReferenceRate(),
         fetchMarginFromUser(),
       ]);
@@ -214,6 +245,7 @@ export default function Dashboard() {
       // Phase 2: sequential — each depends on the previous
       await getMarginRisk();    // sets NiftySecurityId etc., needed by getOpenPrices
       await getOpenPrices();
+      await getLTP();
       await getAllTrades();      // builds positions{} in the store
 
       // Phase 3: margin distribution — runs after positions exist so updateSpanMargin
@@ -289,6 +321,8 @@ export default function Dashboard() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, token]);
 
+  const posGridRef = React.useRef(null);
+
   const handleLogout = () => {
     disconnectSocket();
     logout();
@@ -304,11 +338,17 @@ export default function Dashboard() {
 
   return (
     <Box sx={{ height: '95vh', display: 'flex', flexDirection: 'column' }}>
-      <HeaderBar user={user} onLogout={handleLogout} isSocketConnected={isSocketConnected} />
+      <HeaderBar
+        user={user}
+        onLogout={handleLogout}
+        isSocketConnected={isSocketConnected}
+        onOpenColumns={() => posGridRef.current?.openColumns()}
+        onOpenGrouping={() => posGridRef.current?.openGrouping()}
+      />
       <Box sx={{ flex: 1, overflow: 'hidden', px: 2, pb: 2 }}>
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           {Object.keys(positions).length > 0 && (
-            <PositionsGrid positions={positions} />
+            <PositionsGrid positions={positions} ref={posGridRef} />
           )}
           {isLoading && Object.keys(positions).length === 0 && (
             <GridShimmer />

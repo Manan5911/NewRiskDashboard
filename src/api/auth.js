@@ -293,3 +293,17 @@ export const getMarginFromUser = async () => {
   );
   return response.data;
 };
+
+export const getCommonSubscription = async () => {
+  const token = sessionStorage.getItem('x-auth-token');
+  const response = await axios.get(
+    `${environment.baseUrl}getsubscriptions/`,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `${token}`,
+      },
+    }
+  );
+  return response.data;
+};

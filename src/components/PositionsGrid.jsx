@@ -206,9 +206,8 @@ const fmtExp = (v) => {
 };
 
 // ─── Expanded trade detail row ────────────────────────────────────────────────
-const ExpandedRow = ({ trades, colId, onClose, totalCols }) => {
-  const isPaired = BUCKET_KEYS[colId]?.length === 2;
-  const colMap = ['Symbol', 'Expiry', 'Net Pos', 'SOD Qty', 'SOD Price', 'Intra Qty', 'Intra Price'];
+const ExpandedRow = ({ trades, colId, onClose, onRefresh, totalCols }) => {
+  const colMap = ['Symbol', 'Expiry', 'Net Pos', 'LTP', 'PnL (L)', 'MTM (L)', 'SOD Qty', 'SOD Price', 'Intra Qty', 'Intra Price'];
 
   const ptd = {
     padding: '4px 12px', textAlign: 'center', color: C.muted,
@@ -232,10 +231,17 @@ const ExpandedRow = ({ trades, colId, onClose, totalCols }) => {
           <span style={{ fontSize: '13px', fontWeight: 700, color: C.text, letterSpacing: '0.2px' }}>
             {colId.toUpperCase()} — Trade Breakdown
           </span>
-          <span onClick={onClose} style={{
-            fontSize: '17px', lineHeight: 1, cursor: 'pointer',
-            color: C.muted, userSelect: 'none', padding: '0 4px',
-          }}>×</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={onRefresh} style={{
+              fontSize: '11px', fontWeight: 600, color: '#1a2340',
+              background: '#dbe6f9', border: '1px solid #b3c8ee',
+              borderRadius: '4px', padding: '2px 8px', cursor: 'pointer',
+            }}>⟳</button>
+            <span onClick={onClose} style={{
+              fontSize: '17px', lineHeight: 1, cursor: 'pointer',
+              color: C.muted, userSelect: 'none', padding: '0 4px',
+            }}>×</span>
+          </div>
         </div>
 
         {trades.length === 0 ? (
@@ -259,25 +265,34 @@ const ExpandedRow = ({ trades, colId, onClose, totalCols }) => {
               </tr>
             </thead>
             <tbody>
-              {trades.map((trade, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? C.expandedBg : '#eef3fc' }}>
-                  <td style={{ ...ptd, color: C.text, fontWeight: 600 }} title={trade.Symbol}>
-                    {trade.Symbol}
-                  </td>
-                  <td style={ptd}>{fmtExp(trade.Expiry)}</td>
-                  <td style={{
-                    ...ptd,
-                    color: trade.NetPos > 0 ? C.pos : trade.NetPos < 0 ? C.neg : C.zero,
-                    fontWeight: 600,
-                  }}>
-                    {fmtQty(trade.NetPos)}
-                  </td>
-                  <td style={ptd}>{fmtQty(trade.SOD_Qty)}</td>
-                  <td style={ptd}>{fmtPrice(trade.SOD_Price)}</td>
-                  <td style={ptd}>{fmtQty(trade.IntraQty)}</td>
-                  <td style={ptd}>{fmtPrice(trade.IntraPrice)}</td>
-                </tr>
-              ))}
+              {trades.map((trade, i) => {
+                const pnl = trade.Pnl || 0;
+                const mtm = trade.MTM || 0;
+                return (
+                  <tr key={i} style={{ background: i % 2 === 0 ? C.expandedBg : '#eef3fc' }}>
+                    <td style={{ ...ptd, color: C.text, fontWeight: 600 }} title={trade.Symbol}>
+                      {trade.Symbol}
+                    </td>
+                    <td style={ptd}>{fmtExp(trade.Expiry)}</td>
+                    <td style={{ ...ptd, color: trade.NetPos > 0 ? C.pos : trade.NetPos < 0 ? C.neg : C.zero, fontWeight: 600 }}>
+                      {fmtQty(trade.NetPos)}
+                    </td>
+                    <td style={{ ...ptd, color: C.text }}>
+                      {fmtNum(trade.Ltp || 0)}
+                    </td>
+                    <td style={{ ...ptd, color: pnl > 0 ? C.pos : pnl < 0 ? C.neg : C.zero }}>
+                      {pnl === 0 ? '—' : fmtNum((pnl / 100000).toFixed(2))}
+                    </td>
+                    <td style={{ ...ptd, color: mtm > 0 ? C.pos : mtm < 0 ? C.neg : C.zero }}>
+                      {mtm === 0 ? '—' : fmtNum((mtm / 100000).toFixed(2))}
+                    </td>
+                    <td style={ptd}>{fmtQty(trade.SOD_Qty)}</td>
+                    <td style={ptd}>{fmtPrice(trade.SOD_Price)}</td>
+                    <td style={ptd}>{fmtQty(trade.IntraQty)}</td>
+                    <td style={ptd}>{fmtPrice(trade.IntraPrice)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -300,7 +315,7 @@ const MarginExpandedRow = ({ pos, colId, onClose, totalCols, referenceRate }) =>
   const premiumBuy = pos.premiumBuy || 0;
   const showPremium = colId === 'totalMargin';
 
-  const headers = ['CTCL', 'Exchange', 'Span', 'Exposure', 'Total', 'Peak',
+  const headers = ['Client Code', 'Exchange', 'Span', 'Exposure', 'Total', 'Peak',
     ...(showPremium ? ['Premium Buy'] : [])
   ];
 
@@ -496,7 +511,7 @@ const COLUMNS = [
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
   {
-    id: 'totalMargin', accessorKey: 'totalMargin', header: 'Total Margin', isPaired: false, size: 110,
+    id: 'totalMargin', accessorKey: 'totalMargin', header: 'Total Margin (P)', isPaired: false, size: 110,
     cell: ({ getValue }) => { const v = getValue(); return <MarginCell display={v.display} styleKey={v.styleKey} />; }
   },
   {
@@ -696,7 +711,13 @@ const buildGroups = (positions, customGroups) => {
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function PositionsGrid({ positions }) {
+import { forwardRef, useImperativeHandle } from 'react';
+
+const PositionsGrid = forwardRef(function PositionsGrid({ positions }, ref) {
+  useImperativeHandle(ref, () => ({
+    openColumns:  () => { setSettingsOpen(true); },
+    openGrouping: () => { setGroupingOpen(true); },
+  }));
   // expanded state — sets of expanded cat1 and cat2 keys
   // default: all collapsed
   const [expandedCat1, setExpandedCat1] = useState(new Set());
@@ -734,7 +755,6 @@ export default function PositionsGrid({ positions }) {
   } = useColumnPrefs(DEFAULT_COLUMN_ORDER, viewerUser);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
   const [groupingOpen, setGroupingOpen] = useState(false);
 
   // ── Column resizing ──────────────────────────────────────────────────────────
@@ -867,6 +887,25 @@ export default function PositionsGrid({ positions }) {
 
   const closeExpanded = useCallback(() => setExpanded(null), []);
 
+  const refreshExpanded = useCallback(() => {
+    const livePositions = useDataStore.getState().positions;
+    setExpanded(prev => {
+      if (!prev || prev.type !== 'trade') return prev;
+      const pos = livePositions[prev.userKey];
+      if (!pos) return prev;
+      const bucketKeys = BUCKET_KEYS[prev.colId] || [];
+      const trades = Object.values(pos.tradesMap).filter(t =>
+        bucketKeys.includes(getTradeBucketKey(t)) &&
+        (t.NetPos !== 0 || t.SOD_Qty !== 0 || t.IntraQty !== 0)
+      ).sort((a, b) => {
+        const ac = a.Optiontype === 'CE' ? 0 : 1, bc = b.Optiontype === 'CE' ? 0 : 1;
+        if (ac !== bc) return ac - bc;
+        return (a.Symbol || '').localeCompare(b.Symbol || '');
+      });
+      return { ...prev, trades };
+    });
+  }, []);
+
   const groups = useMemo(() => buildGroups(positions, customGroups), [positions, customGroups]);
 
   const allUserKeys = useMemo(() => Object.keys(positions).sort(), [positions]);
@@ -930,19 +969,25 @@ export default function PositionsGrid({ positions }) {
 
   let userRowIndex = 0; // for alternating row bg across all user rows
 
-  const filterPositions = (posList) => {
+  const filterPositions = (posList, groupName = '') => {
     if (!debouncedQuery.trim()) return posList;
     const q = debouncedQuery.trim().toLowerCase();
+
+    // If group name matches — show all users in this group
+    if (groupName && groupName.toLowerCase().includes(q)) return posList;
+
     return posList.filter(pos => {
       // Match user name
       if ((pos.user || '').toLowerCase().includes(q)) return true;
-      // Match bucket values — Others, Nifty Fut, BNF Fut, IFSC Fut
+
+      // Match scalar bucket values
       const scalarBuckets = ['stocks', 'niftyFut', 'bnfFut'];
       for (const key of scalarBuckets) {
         const v = pos[key];
         if (v && v !== 0 && String(v).toLowerCase().includes(q)) return true;
       }
-      // Match paired C/P buckets — W, W1-W5
+
+      // Match paired C/P bucket values
       const pairBuckets = [
         ['cw','pw'], ['cw1','pw1'], ['cw2','pw2'],
         ['cw3','pw3'], ['cw4','pw4'], ['cw5','pw5'],
@@ -953,6 +998,12 @@ export default function PositionsGrid({ positions }) {
         if (c && c !== 0 && String(c).toLowerCase().includes(q)) return true;
         if (p && p !== 0 && String(p).toLowerCase().includes(q)) return true;
       }
+
+      // Match trade Symbol
+      for (const trade of Object.values(pos.tradesMap || {})) {
+        if ((trade.Symbol || '').toLowerCase().includes(q)) return true;
+      }
+
       return false;
     });
   };
@@ -1042,47 +1093,6 @@ return (
               >×</span>
             )}
           </div>
-        </div>
-        <div style={{ position: 'relative' }}>
-          <button
-            style={S.settingsBtn}
-            onClick={() => setSettingsDropdownOpen(p => !p)}
-          >
-            ⚙ Settings
-          </button>
-          {settingsDropdownOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: '4px',
-              background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100,
-              minWidth: '140px', overflow: 'hidden',
-            }}
-              onMouseLeave={() => setSettingsDropdownOpen(false)}
-            >
-              {[
-                { label: 'Columns', icon: '▦', action: () => { setSettingsOpen(true); setSettingsDropdownOpen(false); } },
-                { label: 'Grouping', icon: '⊜', action: () => { setGroupingOpen(true); setSettingsDropdownOpen(false); } },
-              ].map(item => (
-                <div
-                  key={item.label}
-                  onClick={item.action}
-                  style={{
-                    padding: '7px 13px', fontSize: '12px', fontWeight: 600,
-                    color: '#111827', cursor: 'pointer',
-                    borderBottom: '1px solid #f3f4f6',
-                    display: 'flex', alignItems: 'center', gap: '9px',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    letterSpacing: '0.1px',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <span style={{ fontSize: '15px', color: '#1a2340' }}>{item.icon}</span>
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     <div className="positions-wrapper" style={{ ...S.wrapper, flex: 1 }}>
@@ -1203,7 +1213,7 @@ return (
                     {isExpRow && (
                       expanded.type === 'margin'
                         ? <MarginExpandedRow key={`exp-${userKey}`} pos={expanded.pos} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} referenceRate={referenceRate} />
-                        : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} />
+                        : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} onRefresh={refreshExpanded} totalCols={totalCols} />
                     )}
                   </Fragment>
                 );
@@ -1213,15 +1223,28 @@ return (
               const filteredCat2Groups = cat2Groups.map(({ cat2, userKeys }) => ({
                 cat2,
                 userKeys,
-                filteredUsers: sortPositions(filterPositions(userKeys.map(k => positions[k]).filter(Boolean))),
+                filteredUsers: sortPositions(filterPositions(userKeys.map(k => positions[k]).filter(Boolean), cat2)),
               })).filter(sg => sg.filteredUsers.length > 0);
 
-              if (filteredCat2Groups.length === 0) return null;
+              // Also check if cat1 name matches — show all sub-groups if so
+              const cat1Matches = debouncedQuery.trim() &&
+                cat1.toLowerCase().includes(debouncedQuery.trim().toLowerCase());
+
+              if (!cat1Matches && filteredCat2Groups.length === 0) return null;
+
+              // If cat1 matches, use all users unfiltered
+              const effectiveCat2Groups = cat1Matches
+                ? cat2Groups.map(({ cat2, userKeys }) => ({
+                    cat2,
+                    userKeys,
+                    filteredUsers: sortPositions(userKeys.map(k => positions[k]).filter(Boolean)),
+                  }))
+                : filteredCat2Groups;
 
               const isCat1Expanded = expandedCat1.has(cat1);
               const isCat1EffExpanded = debouncedQuery.trim() ? true : isCat1Expanded;
               const aggUsers = debouncedQuery.trim()
-                ? filteredCat2Groups.flatMap(sg => sg.filteredUsers)
+                ? effectiveCat2Groups.flatMap(sg => sg.filteredUsers)
                 : allUserKeys.map(k => positions[k]).filter(Boolean);
               const cat1Agg    = aggregateBuckets(aggUsers);
               const cat1AggRow = aggToRow(cat1Agg);
@@ -1237,7 +1260,7 @@ return (
                     columns={visibleColDefs}
                   />
 
-                  {isCat1EffExpanded && filteredCat2Groups.map(({ cat2, userKeys, filteredUsers }) => {
+                  {isCat1EffExpanded && effectiveCat2Groups.map(({ cat2, userKeys, filteredUsers }) => {
                     const cat2Key = `${cat1}:::${cat2}`;
                     const isCat2Expanded = cat2 ? expandedCat2.has(cat2Key) : true;
                     const isCat2EffExpanded = debouncedQuery.trim() ? true : isCat2Expanded;
@@ -1311,7 +1334,7 @@ return (
                             {isExpRow && (
                               expanded.type === 'margin'
                                 ? <MarginExpandedRow key={`exp-${userKey}`} pos={expanded.pos} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} referenceRate={referenceRate} />
-                                : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} totalCols={totalCols} />
+                                : <ExpandedRow key={`exp-${userKey}`} trades={expanded.trades} colId={expanded.colId} onClose={closeExpanded} onRefresh={refreshExpanded} totalCols={totalCols} />
                             )}
                           </Fragment>
                         );
@@ -1374,4 +1397,6 @@ return (
       )}
     </div>
   );
-}
+});
+
+export default PositionsGrid;

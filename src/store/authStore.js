@@ -18,7 +18,7 @@ export const useAuthStore = create(devtools((set) => ({
     sessionStorage.setItem('Role', role);
     sessionStorage.setItem('RolesList', JSON.stringify(rolesList)); // add this
 
-    trackLogin(user);
+    // trackLogin(user);
     set({ user, role, token, rolesList, isAuthenticated: true });
   },
 
